@@ -1,0 +1,87 @@
+---
+# --- Cleanup Tasks to prevent APT conflicts ---
+- name: 0.a. Clean up old Docker GPG keys (if they exist)
+  ansible.builtin.file:
+    path: /etc/apt/trusted.gpg.d/docker.gpg
+    state: absent
+  ignore_errors: yes
+
+- name: 0.b. Remove conflicting Docker APT source file (if it exists)
+  ansible.builtin.file:
+    path: /etc/apt/sources.list.d/docker.list
+    state: absent
+  ignore_errors: yes
+
+- name: 0.c. Ensure old/deprecated Docker GPG key location is clean
+  ansible.builtin.file:
+    path: /usr/share/keyrings/docker-archive-keyring.gpg
+    state: absent
+  ignore_errors: yes
+
+- name: 1. Install general prerequisites
+  ansible.builtin.apt:
+    name:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - gnupg
+      - lsb-release
+      - python3-pip
+      - software-properties-common
+    state: present
+    update_cache: yes
+
+- name: 2. Add Docker's official GPG key
+  ansible.builtin.apt_key:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    state: present
+
+- name: 3. Add Docker repository (ARM64 compatible)
+  ansible.builtin.apt_repository:
+    repo: "deb [arch={{ 'arm64' if ansible_architecture == 'aarch64' else 'amd64' }}] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+    state: present
+    filename: docker
+    update_cache: yes
+
+- name: 4. Install Docker Engine and Docker Compose Plugin
+  ansible.builtin.apt:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-compose-plugin  # This installs the 'docker compose' V2 command
+    state: present
+    update_cache: yes
+
+- name: 5. Add remote user to docker group
+  ansible.builtin.user:
+    name: "{{ ansible_user }}"
+    groups: docker
+    append: yes
+
+- name: 6. Install Docker Python library for Ansible
+  ansible.builtin.pip:
+    name:
+      - docker
+      - PyYAML
+    state: present
+
+- name: 7. Ensure Docker service is running and enabled
+  ansible.builtin.systemd:
+    name: docker
+    state: started
+    enabled: yes
+
+- name: 8. Verify Docker Compose V2 is available
+  ansible.builtin.command:
+    cmd: docker compose version
+  register: docker_compose_version
+  changed_when: false
+
+- name: 9. Display Docker Compose version
+  ansible.builtin.debug:
+    msg: "Docker Compose version: {{ docker_compose_version.stdout }}"
+
+- name: 10. Informational message about group membership
+  ansible.builtin.debug:
+    msg: "The user '{{ ansible_user }}' has been added to the 'docker' group. A connection refresh is sometimes required for this to take effect."
