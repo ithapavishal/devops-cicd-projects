@@ -1,0 +1,26 @@
+---
+- name: Deploy Django Application
+  hosts: web
+  vars_files:
+    - "{{ playbook_dir }}/../group_vars/{{ env }}.yml"
+  
+  become: yes  # <--- CRUCIAL: Must be present to run apt commands
+
+  roles:
+    - role: "{{ playbook_dir }}/../roles/docker_setup"
+      tags: docker
+    - role: "{{ playbook_dir }}/../roles/app_deploy"
+      tags: app
+
+
+# ---
+# - name: Deploy Django Application
+#   hosts: web
+#   vars_files:
+#     - "../group_vars/{{ env }}.yml"
+  
+#   roles:
+#     - role: docker_setup
+#       tags: docker
+#     - role: app_deploy
+#       tags: app
